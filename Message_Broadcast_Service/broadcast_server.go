@@ -1,3 +1,5 @@
+// project to practice goroutines, channels, select, timeouts,
+// structs, methods, mutexes, networking, tickers, and rate limiting
 package main
 
 import (
@@ -9,18 +11,22 @@ import (
 	"time"
 )
 
+// client have conn to connect with broadcast server which helps to send and listen from/to broadcast server
 type Client struct {
 	conn          net.Conn
 	mu            sync.Mutex
-	burstyLimiter chan time.Time
+	burstyLimiter chan time.Time // rate limiter
 	id            int
 }
 
+// message structure
 type Message struct {
 	SourceId int
 	Content  string
 }
 
+// broadcast server have broadcastCh to listen from clients to broadcast and list of clients
+// and assign id for clients
 type BroadcastServer struct {
 	broadcastCh chan Message
 	clients     map[int]*Client
@@ -28,6 +34,7 @@ type BroadcastServer struct {
 	nextID      int
 }
 
+// initialize broadcast server
 func NewBroadcastServer() *BroadcastServer {
 	return &BroadcastServer{
 		clients:     make(map[int]*Client),
@@ -48,6 +55,7 @@ func (bs *BroadcastServer) Run() {
 
 	fmt.Println("Server started on :8080")
 
+	// listen for client
 	go func() {
 		for {
 			conn, err := ln.Accept()
@@ -58,24 +66,26 @@ func (bs *BroadcastServer) Run() {
 		}
 	}()
 
-	for {
-		for msg := range bs.broadcastCh {
-			bs.mu.Lock()
-			for _, client := range bs.clients {
-				client.mu.Lock()
-				_, err := fmt.Fprintf(client.conn, "\nClient %d: %s\n", msg.SourceId, msg.Content)
-				if err != nil {
-					fmt.Println("Broadcase Error for client %d\n", client.id)
-					client.mu.Unlock()
-					continue
-				}
+	// listen for message
+	for msg := range bs.broadcastCh {
+		bs.mu.Lock()
+		// broadcast to each clients the received message
+		for _, client := range bs.clients {
+			client.mu.Lock()
+			_, err := fmt.Fprintf(client.conn, "\nClient %d: %s\n", msg.SourceId, msg.Content)
+			if err != nil {
+				fmt.Println("Broadcase Error for client %d\n", client.id)
 				client.mu.Unlock()
+				continue
 			}
-			bs.mu.Unlock()
+			client.mu.Unlock()
 		}
+		bs.mu.Unlock()
 	}
+
 }
 
+// handle new client
 func (bs *BroadcastServer) handleNewClient(conn net.Conn) {
 	bs.mu.Lock()
 	clientID := bs.nextID
@@ -86,6 +96,7 @@ func (bs *BroadcastServer) handleNewClient(conn net.Conn) {
 		burstyLimiter <- time.Now()
 	}
 
+	// after the first 3 bursty then next message comes after 500 milliseconds
 	go func() {
 		for t := range time.Tick(500 * time.Millisecond) {
 			burstyLimiter <- t
@@ -97,6 +108,7 @@ func (bs *BroadcastServer) handleNewClient(conn net.Conn) {
 		burstyLimiter: burstyLimiter,
 		id:            clientID,
 	}
+	// register the client in broadcast server
 	bs.clients[clientID] = client
 	bs.mu.Unlock()
 
@@ -105,14 +117,16 @@ func (bs *BroadcastServer) handleNewClient(conn net.Conn) {
 }
 
 func (bs *BroadcastServer) handleClient(client *Client) {
+	// after clients leave triggered function
 	defer func() {
 		bs.mu.Lock()
-		delete(bs.clients, client.id)
+		delete(bs.clients, client.id) // remove the client so it will not accept any broadcasted message after leaving
 		client.conn.Close()
 		bs.mu.Unlock()
 		fmt.Printf("client %d disconnected\n", client.id)
 	}()
 
+	// read from the client through it's conn
 	reader := bufio.NewReader(client.conn)
 
 	for {
@@ -127,6 +141,8 @@ func (bs *BroadcastServer) handleClient(client *Client) {
 		if msg == "exit" {
 			return
 		}
+		// after the first 3 message it will allow client to send message after 500 Millisecond
+		// to avoid any busy traffic
 		<-client.burstyLimiter
 		fmt.Printf("Client %d sent message: %s\n", client.id, msg)
 
@@ -136,5 +152,6 @@ func (bs *BroadcastServer) handleClient(client *Client) {
 
 func main() {
 	server := NewBroadcastServer()
+	//start the server
 	server.Run()
 }

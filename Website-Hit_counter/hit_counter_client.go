@@ -8,6 +8,7 @@ import (
 )
 
 func main() {
+	// connect to the server
 	conn, err := net.Dial("tcp", "localhost:8080")
 
 	if err != nil {
@@ -15,6 +16,8 @@ func main() {
 		return
 	}
 
+	// accept any message from the server using goroutine because
+	// not to block at this level so it will be interactive server can send and also clients too
 	go func() {
 		reader := bufio.NewReader(conn)
 		for {
@@ -28,6 +31,7 @@ func main() {
 		}
 	}()
 
+	// read from input to send to the server
 	inputReader := bufio.NewReader(os.Stdin)
 
 	for {

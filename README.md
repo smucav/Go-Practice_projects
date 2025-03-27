@@ -1,5 +1,7 @@
-![Go Mascot](https://go.dev/images/gophers/pilot-bust.svg)
-# Go Practice Projects
+<div style="display: flex; align-items: center;">
+    <img src="https://go.dev/images/gophers/pilot-bust.svg" alt="Go Mascot" style="width: 50px; height: 50px; margin-right: 10px;" />
+    <h1>Go Practice Projects</h1>
+</div>
 
 ## Overview
 Welcome to the **Go Practice Projects** repository! This repository is designed to help developers learn and practice Golang by building real-world projects. Each project within this repository focuses on a specific concept in Go, ranging from concurrency and networking to system design and data structures. The goal is to bridge theoretical knowledge with hands-on experience, making learning more effective and engaging.

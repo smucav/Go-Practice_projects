@@ -1,3 +1,4 @@
+![Go Mascot](https://go.dev/images/gophers/ladder.svg)
 # Go Practice Projects
 
 ## Overview

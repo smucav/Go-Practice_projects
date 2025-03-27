@@ -1,6 +1,6 @@
 <div style="display: flex; align-items: center;">
-    <img src="https://go.dev/images/gophers/pilot-bust.svg" alt="Go Mascot" style="width: 50px; height: 50px; margin-right: 10px;" />
-    <h1>Go Practice Projects</h1>
+    <h1>    <img src="https://go.dev/images/gophers/pilot-bust.svg" alt="Go Mascot" style="width: 50px; height: 50px; margin-right: 10px;" />
+Go Practice Projects</h1>
 </div>
 
 ## Overview

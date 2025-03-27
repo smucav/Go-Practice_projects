@@ -1,4 +1,4 @@
-![Go Mascot](https://go.dev/images/gophers/ladder.svg)
+![Go Mascot](https://go.dev/images/gophers/pilot-bust.svg)
 # Go Practice Projects
 
 ## Overview

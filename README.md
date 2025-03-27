@@ -11,12 +11,10 @@ Many beginners struggle with learning Go because they lack practical exposure. T
 - **Collaborate with other developers**, share insights, and contribute to open-source projects.
 
 ## How It Works
-Each project in this repository is built to highlight a specific Go feature or best practice, while also demonstrating how different concepts connect. You can explore projects based on the topics you want to master, as well as how they relate to other concepts in Go. Some of the areas covered include:
+Each project in this repository is built to highlight a specific Go feature or best practice while also demonstrating how different concepts connect. You can explore projects based on the topics you want to master, as well as how they relate to other concepts in Go. Some of the areas covered include:
 - **Concurrency**: Goroutines, channels, worker pools, and task queues.
 - **Networking**: TCP/UDP servers, WebSockets, and RESTful APIs.
 - **Data Structures & Algorithms**: Implementing stacks, queues, trees, and hash tables in Go.
-- **Blockchain & Cryptography**: Building decentralized applications and understanding cryptographic principles.
-- **System Design & Performance Optimization**: Creating scalable services and improving Go application performance.
 - **Interconnected Concepts**: Projects that demonstrate how different Go features work together in real-world applications.
 
 ## Projects Included
@@ -54,5 +52,6 @@ This repository is more than just a collection of projects; it's a learning hub 
 This project is open-source and available for anyone to use, modify, and contribute to.
 
 ## Author
-Developed by [smucav](https://github.com/smucav) and contributors. Let's build and learn Go together!
+Developed by **[smucav](https://github.com/smucav)** and contributors. Let's build and learn Go together!
+
 

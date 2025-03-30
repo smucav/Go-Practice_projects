@@ -159,7 +159,7 @@ func (sb *ScoreBoard) broadcast(score Score) {
 	viewMu.Lock()
 	defer viewMu.Unlock()
 	for conn := range activeViewers {
-		fmt.Fprintf(conn, "Game: %s |%s %d - %d %s| %v\n", score.GameId, score.TeamA, score.ScoreA, score.ScoreB, score.TeamB, score.Update)
+		fmt.Fprintf(conn, "Game: %s |%s %d - %d %s| %v\n", score.GameId, score.TeamA, score.ScoreA, score.ScoreB, score.TeamB, score.Update.Format(time.RFC1123))
 	}
 }
 

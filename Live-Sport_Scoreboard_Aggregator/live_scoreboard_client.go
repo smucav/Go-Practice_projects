@@ -21,7 +21,6 @@ func main() {
 	go func() {
 		reader := bufio.NewReader(conn)
 		for {
-
 			input, err := reader.ReadString('\n')
 			if err != nil {
 				fmt.Println("Server Disconnected")
@@ -38,12 +37,14 @@ func main() {
 		msg := strings.TrimSpace(input)
 
 		_, err := conn.Write([]byte(msg + "\n"))
+		if err != nil {
+			fmt.Println("Send Error", err)
+			break
+		}
+
 		if msg == "EXIT" {
 			break
 		}
 
-		if err != nil {
-			fmt.Println("Send Error", err)
-		}
 	}
 }

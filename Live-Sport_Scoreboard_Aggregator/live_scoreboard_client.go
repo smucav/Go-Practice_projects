@@ -1,3 +1,5 @@
+// client module to handle businesses from client
+
 package main
 
 import (
@@ -9,6 +11,7 @@ import (
 )
 
 func main() {
+	// dial to connect to the server
 	conn, err := net.Dial("tcp", "localhost:8080")
 
 	if err != nil {
@@ -19,6 +22,7 @@ func main() {
 	defer conn.Close()
 
 	go func() {
+		// used to receive message from the server
 		reader := bufio.NewReader(conn)
 		for {
 			input, err := reader.ReadString('\n')
@@ -32,6 +36,7 @@ func main() {
 
 	inputReader := bufio.NewReader(os.Stdin)
 	for {
+		// use to send message to the server
 		fmt.Printf("> ")
 		input, _ := inputReader.ReadString('\n')
 		msg := strings.TrimSpace(input)

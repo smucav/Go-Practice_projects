@@ -1,3 +1,4 @@
+// Project to learn goroutine, channel, panic and recover mutex struct, net.. more
 package main
 
 import (
@@ -10,20 +11,23 @@ import (
 	"time"
 )
 
+// board where each game information stored
 type Score struct {
 	GameId string    `json:"game_id"`
 	TeamA  string    `json:"team_a"`
 	TeamB  string    `json:"team_b"`
 	ScoreA int       `json:"score_a"`
 	ScoreB int       `json:"score_b"`
-	Update time.Time `json:"updated"`
+	Update time.Time `json:"updated"` // used to show to which time is the score showing
 }
 
+// to accept game information from reporter and send acceptance to the reporter
 type ScoreReport struct {
-	data   string
+	data   string // game information
 	respCh chan string
 }
 
+// Score board which have games information and channel to broadcast game information to viewers and also keep track of clients activity by goroutine
 type ScoreBoard struct {
 	reportCh    chan ScoreReport
 	scores      map[string]Score
@@ -33,6 +37,7 @@ type ScoreBoard struct {
 	shutdownCh  chan struct{}
 }
 
+// initialize the scoreboard
 func NewScoreBoard() *ScoreBoard {
 	return &ScoreBoard{
 		scores:      make(map[string]Score),
@@ -42,7 +47,9 @@ func NewScoreBoard() *ScoreBoard {
 	}
 }
 
+// run the server
 func (sb *ScoreBoard) Run() {
+	// listen to any connection
 	ln, err := net.Listen("tcp", ":8080")
 
 	if err != nil {
@@ -53,25 +60,39 @@ func (sb *ScoreBoard) Run() {
 	defer ln.Close()
 	fmt.Println("ScoreBoard server started on :8080")
 
+	// acceptor goroutine from reporters
 	go func() {
 		for {
 			select {
 			case report := <-sb.reportCh:
-				var score Score
-				err := json.Unmarshal([]byte(report.data), &score)
-				if err != nil {
-					report.respCh <- fmt.Sprintf("Invalid score data: %v\n", err)
-					continue
-				}
-				if score.ScoreA < 0 || score.ScoreB < 0 {
-					panic("Negative scores not allowed")
-				}
-				score.Update = time.Now()
-				sb.mu.Lock()
-				sb.scores[score.GameId] = score
-				sb.mu.Unlock()
-				sb.broadcastCh <- score
-				report.respCh <- "Report Submitted Successfully\n"
+				// used immediate invoked function expression(IIFE)
+				// because of panic and recover per report not to affect other reports
+				func() {
+					defer func() {
+						if f := recover; f != nil {
+							fmt.Fprintf(conn, "panic negative score not allowed\n")
+						}
+					}()
+
+					var score Score
+					err := json.Unmarshal([]byte(report.data), &score)
+					if err != nil {
+						report.respCh <- fmt.Sprintf("Invalid score data: %v\n", err)
+						continue
+					}
+					if score.ScoreA < 0 || score.ScoreB < 0 {
+						panic("Negative scores not allowed")
+					}
+					score.Update = time.Now() // set time to which time the score is begin updated
+					// use lock and unlock to avoid race condition
+					sb.mu.Lock()
+					// store it so we can send the score again to viewers when no new updated score is not begin received from reporter
+					sb.scores[score.GameId] = score
+					sb.mu.Unlock()
+					// send the score that is begin received from report to broadcast goroutine to send to all viewers
+					sb.broadcastCh <- score
+					report.respCh <- "Report Submitted Successfully\n"
+				}()
 			case <-sb.shutdownCh:
 				fmt.Println("Score aggregator shutting down..")
 				return
@@ -80,11 +101,13 @@ func (sb *ScoreBoard) Run() {
 	}()
 
 	go func() {
+		// use ticker here to send each score again when no new updated score result is not begin received
 		timer := time.NewTicker(10 * time.Second)
 		defer timer.Stop()
 		for {
 			select {
 			case score := <-sb.broadcastCh:
+				// send to the function that will broadcast to active viewers
 				sb.broadcast(score)
 			case <-timer.C:
 				sb.mu.Lock()
@@ -99,6 +122,7 @@ func (sb *ScoreBoard) Run() {
 		}
 	}()
 
+	// handle each new client
 	sb.clients.Add(1)
 	go func() {
 		defer sb.clients.Done()
@@ -124,9 +148,12 @@ func (sb *ScoreBoard) Run() {
 	close(sb.shutdownCh)
 }
 
+// where all active viewers stored
+// once they exited they will be deleted from it
 var activeViewers = make(map[net.Conn]struct{})
 var viewMu sync.Mutex
 
+// broadcast to each viewers
 func (sb *ScoreBoard) broadcast(score Score) {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
@@ -141,9 +168,12 @@ func (sb *ScoreBoard) handleClient(conn net.Conn) {
 
 	fmt.Fprintf(conn, "welcome to score board use Command like 'VIEW' 'to report use 'REPORT: <report>\n")
 
+	// reader from the connection
 	reader := bufio.NewReader(conn)
 
 	for {
+
+		// use this recover to recover from panic happend when receiving bad report
 		defer func() {
 			if f := recover(); f != nil {
 				fmt.Fprintf(conn, "Panic caught: %v\n", f)
@@ -151,6 +181,7 @@ func (sb *ScoreBoard) handleClient(conn net.Conn) {
 			}
 		}()
 
+		// read client input
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Println("Client Error sending")
@@ -160,9 +191,11 @@ func (sb *ScoreBoard) handleClient(conn net.Conn) {
 			return
 		}
 
+		// remove trailing spaces
 		msg := strings.TrimSpace(input)
 
 		if msg == "EXIT" {
+			// handle exit and also delete from active viewers
 			fmt.Fprintf(conn, "Good bye :)\n")
 			viewMu.Lock()
 			delete(activeViewers, conn)
@@ -170,7 +203,9 @@ func (sb *ScoreBoard) handleClient(conn net.Conn) {
 			fmt.Printf("client %s exited\n", conn.RemoteAddr().String())
 			return
 		}
+
 		if msg == "VIEW" {
+			// activate the client as viewer
 			fmt.Fprintf(conn, "Now you are View scores\n")
 			viewMu.Lock()
 			activeViewers[conn] = struct{}{}
@@ -180,8 +215,12 @@ func (sb *ScoreBoard) handleClient(conn net.Conn) {
 		}
 
 		if strings.HasPrefix(msg, "REPORT ") {
+			// accept a report
 			report := strings.TrimSpace(strings.TrimPrefix(msg, "REPORT "))
-
+			if report == "{bad}" {
+				panic("invalid report")
+			}
+			// ship it to send to the acceptor to process and broadcast it
 			reportsend := ScoreReport{
 				data:   report,
 				respCh: make(chan string),

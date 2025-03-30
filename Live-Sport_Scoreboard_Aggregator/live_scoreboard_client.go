@@ -41,6 +41,7 @@ func main() {
 		input, _ := inputReader.ReadString('\n')
 		msg := strings.TrimSpace(input)
 
+		// send message to server
 		_, err := conn.Write([]byte(msg + "\n"))
 		if err != nil {
 			fmt.Println("Send Error", err)

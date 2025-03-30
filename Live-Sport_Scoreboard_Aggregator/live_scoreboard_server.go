@@ -69,8 +69,8 @@ func (sb *ScoreBoard) Run() {
 				// because of panic and recover per report not to affect other reports
 				func() {
 					defer func() {
-						if f := recover; f != nil {
-							fmt.Fprintf(conn, "panic negative score not allowed\n")
+						if f := recover(); f != nil {
+							report.respCh <- fmt.Sprintf("panic negative score not allowed\n")
 						}
 					}()
 
@@ -78,7 +78,7 @@ func (sb *ScoreBoard) Run() {
 					err := json.Unmarshal([]byte(report.data), &score)
 					if err != nil {
 						report.respCh <- fmt.Sprintf("Invalid score data: %v\n", err)
-						continue
+						return
 					}
 					if score.ScoreA < 0 || score.ScoreB < 0 {
 						panic("Negative scores not allowed")
@@ -100,6 +100,7 @@ func (sb *ScoreBoard) Run() {
 		}
 	}()
 
+	// broadcastor
 	go func() {
 		// use ticker here to send each score again when no new updated score result is not begin received
 		timer := time.NewTicker(10 * time.Second)
@@ -155,8 +156,8 @@ var viewMu sync.Mutex
 
 // broadcast to each viewers
 func (sb *ScoreBoard) broadcast(score Score) {
-	sb.mu.Lock()
-	defer sb.mu.Unlock()
+	viewMu.Lock()
+	defer viewMu.Unlock()
 	for conn := range activeViewers {
 		fmt.Fprintf(conn, "Game: %s |%s %d - %d %s| %v\n", score.GameId, score.TeamA, score.ScoreA, score.ScoreB, score.TeamB, score.Update)
 	}
@@ -206,7 +207,6 @@ func (sb *ScoreBoard) handleClient(conn net.Conn) {
 
 		if msg == "VIEW" {
 			// activate the client as viewer
-			fmt.Fprintf(conn, "Now you are View scores\n")
 			viewMu.Lock()
 			activeViewers[conn] = struct{}{}
 			viewMu.Unlock()

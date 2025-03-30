@@ -11,12 +11,12 @@ import (
 )
 
 type Score struct {
-	GameId string `json:"game_id"`
-	TeamA  string `json:"team_a"`
-	TeamB  string `json:"team_b"`
-	ScoreA int    `json:"score_a"`
-	ScoreB int    `json:"score_b"`
-	update time.Time
+	GameId string    `json:"game_id"`
+	TeamA  string    `json:"team_a"`
+	TeamB  string    `json:"team_b"`
+	ScoreA int       `json:"score_a"`
+	ScoreB int       `json:"score_b"`
+	Update time.Time `json:"updated"`
 }
 
 type ScoreReport struct {
@@ -60,15 +60,20 @@ func (sb *ScoreBoard) Run() {
 				var score Score
 				err := json.Unmarshal([]byte(report.data), &score)
 				if err != nil {
-					fmt.Println("Data incorrect", err)
+					report.respCh <- fmt.Sprintf("Invalid score data: %v\n", err)
 					continue
 				}
+				if score.ScoreA < 0 || score.ScoreB < 0 {
+					panic("Negative scores not allowed")
+				}
+				score.Update = time.Now()
 				sb.mu.Lock()
 				sb.scores[score.GameId] = score
 				sb.mu.Unlock()
 				sb.broadcastCh <- score
 				report.respCh <- "Report Submitted Successfully\n"
 			case <-sb.shutdownCh:
+				fmt.Println("Score aggregator shutting down..")
 				return
 			}
 		}
@@ -87,19 +92,32 @@ func (sb *ScoreBoard) Run() {
 					sb.broadcast(score)
 				}
 				sb.mu.Unlock()
+			case <-sb.shutdownCh:
+				fmt.Println("Broadcast shutting down..")
+				return
 			}
 		}
 	}()
 
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			fmt.Println("Server down")
-			return
+	sb.clients.Add(1)
+	go func() {
+		defer sb.clients.Done()
+		for {
+			select {
+			case <-sb.shutdownCh:
+				return
+			default:
+				conn, err := ln.Accept()
+				if err != nil {
+					fmt.Println("Server down")
+					return
+				}
+				sb.clients.Add(1)
+				go sb.handleClient(conn)
+			}
 		}
-		sb.clients.Add(1)
-		go sb.handleClient(conn)
-	}
+
+	}()
 
 	sb.clients.Wait()
 	fmt.Println("before Closing")
@@ -110,10 +128,10 @@ var activeViewers = make(map[net.Conn]struct{})
 var viewMu sync.Mutex
 
 func (sb *ScoreBoard) broadcast(score Score) {
-	// sb.mu.Lock()
-	// defer sb.mu.Unlock()
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
 	for conn := range activeViewers {
-		fmt.Fprintf(conn, "Game: %s |%s %d - %d %s|\n", score.GameId, score.TeamA, score.ScoreA, score.ScoreB, score.TeamB)
+		fmt.Fprintf(conn, "Game: %s |%s %d - %d %s| %v\n", score.GameId, score.TeamA, score.ScoreA, score.ScoreB, score.TeamB, score.Update)
 	}
 }
 
@@ -128,14 +146,17 @@ func (sb *ScoreBoard) handleClient(conn net.Conn) {
 	for {
 		defer func() {
 			if f := recover(); f != nil {
-				fmt.Fprintf(conn, "Panic caught: %v\n", r)
-				fmt.Println("Client %s panicked but recovered: %v\n", conn.RemotAddr().String(), r)
+				fmt.Fprintf(conn, "Panic caught: %v\n", f)
+				fmt.Println("Client %s panicked but recovered: %v\n", conn.RemoteAddr().String(), f)
 			}
 		}()
 
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Println("Client Error sending")
+			viewMu.Lock()
+			delete(activeViewers, conn)
+			viewMu.Unlock()
 			return
 		}
 
@@ -150,18 +171,16 @@ func (sb *ScoreBoard) handleClient(conn net.Conn) {
 			return
 		}
 		if msg == "VIEW" {
+			fmt.Fprintf(conn, "Now you are View scores\n")
 			viewMu.Lock()
 			activeViewers[conn] = struct{}{}
 			viewMu.Unlock()
+			fmt.Fprintf(conn, "Now viewing live socres\n")
+			continue
 		}
 
 		if strings.HasPrefix(msg, "REPORT ") {
 			report := strings.TrimSpace(strings.TrimPrefix(msg, "REPORT "))
-
-			if report == "{bad}" {
-				panic("bad report")
-			}
-			fmt.Println(report)
 
 			reportsend := ScoreReport{
 				data:   report,
@@ -172,6 +191,7 @@ func (sb *ScoreBoard) handleClient(conn net.Conn) {
 			fmt.Fprintf(conn, <-reportsend.respCh)
 			continue
 		}
+		fmt.Fprintf(conn, "Unknown command: %s\n", msg)
 	}
 }
 

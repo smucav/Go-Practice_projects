@@ -80,13 +80,10 @@ func (sb *ScoreBoard) Run() {
 		for {
 			select {
 			case score := <-sb.broadcastCh:
-				fmt.Println("from direct broadcast channel receive")
 				sb.broadcast(score)
 			case <-timer.C:
 				sb.mu.Lock()
 				for _, score := range sb.scores {
-					fmt.Println("From broadcast timer here")
-					fmt.Println(score)
 					sb.broadcast(score)
 				}
 				sb.mu.Unlock()
@@ -121,11 +118,6 @@ func (sb *ScoreBoard) broadcast(score Score) {
 }
 
 func (sb *ScoreBoard) handleClient(conn net.Conn) {
-	defer func() {
-		if f := recover(); f != nil {
-			fmt.Println("Panic caught and recover")
-		}
-	}()
 	defer sb.clients.Done()
 	defer conn.Close()
 
@@ -134,6 +126,13 @@ func (sb *ScoreBoard) handleClient(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 
 	for {
+		defer func() {
+			if f := recover(); f != nil {
+				fmt.Fprintf(conn, "Panic caught: %v\n", r)
+				fmt.Println("Client %s panicked but recovered: %v\n", conn.RemotAddr().String(), r)
+			}
+		}()
+
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Println("Client Error sending")

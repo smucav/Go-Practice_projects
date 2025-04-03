@@ -1,4 +1,4 @@
-// Project to learn goroutine, channel, panic and recover mutex struct, net.. more
+// Project to learn goroutine, channel, panic and recover mutex struct, net, template and more
 package main
 
 import (
@@ -8,6 +8,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 )
 
@@ -158,8 +159,19 @@ var viewMu sync.Mutex
 func (sb *ScoreBoard) broadcast(score Score) {
 	viewMu.Lock()
 	defer viewMu.Unlock()
+	const scoreTemplate = `
+GameID: {{.GameId}}
+Updated on: {{.Update}}
+
+Standing:
+|{{- .TeamA}}: {{.ScoreA}} : {{.ScoreB}} {{.TeamB}}|
+`
+	t1, err := template.New("Standing").Parse(scoreTemplate)
+	if err != nil {
+	}
 	for conn := range activeViewers {
-		fmt.Fprintf(conn, "Game: %s |%s %d - %d %s| %v\n", score.GameId, score.TeamA, score.ScoreA, score.ScoreB, score.TeamB, score.Update.Format(time.RFC1123))
+		t1.Execute(conn, score)
+		// fmt.Fprintf(conn, "Game: %s |%s %d - %d %s| %v\n", score.GameId, score.TeamA, score.ScoreA, score.ScoreB, score.TeamB, score.Update.Format(time.RFC1123))
 	}
 }
 
